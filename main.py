@@ -41,10 +41,15 @@ def load_test_data(file_path: Path) -> list[QuestionInput]:
     return questions
 
 
-def run_pipeline(questions: list[QuestionInput]) -> list[PredictionOutput]:
-    """Run the RAG pipeline on a list of questions."""
+def run_pipeline(questions: list[QuestionInput], force_reingest: bool = False) -> list[PredictionOutput]:
+    """Run the RAG pipeline on a list of questions.
+    
+    Args:
+        questions: List of questions to process.
+        force_reingest: If True, force re-ingestion of knowledge base. Defaults to False.
+    """
     print("Initializing knowledge base...")
-    vector_store = ingest_knowledge_base()
+    vector_store = ingest_knowledge_base(force=force_reingest)
     set_vector_store(vector_store)
 
     graph = get_graph()

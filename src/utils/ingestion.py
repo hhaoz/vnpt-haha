@@ -27,10 +27,12 @@ def get_embeddings() -> HuggingFaceEmbeddings:
 
 
 def get_qdrant_client() -> QdrantClient:
-    """Get or create in-memory Qdrant client singleton."""
+    """Get or create persistent Qdrant client singleton."""
     global _qdrant_client
     if _qdrant_client is None:
-        _qdrant_client = QdrantClient(path="qdrant_storage")
+        db_path = settings.vector_db_path_resolved
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        _qdrant_client = QdrantClient(path=str(db_path))
     return _qdrant_client
 
 
@@ -46,8 +48,35 @@ def load_knowledge_base(file_path: Path | None = None) -> str:
         return f.read()
 
 
-def ingest_knowledge_base(file_path: Path | None = None) -> QdrantVectorStore:
-    """Ingest knowledge base into Qdrant vector store."""
+def ingest_knowledge_base(file_path: Path | None = None, force: bool = False) -> QdrantVectorStore:
+    """Ingest knowledge base into Qdrant vector store.
+    
+    Args:
+        file_path: Path to knowledge base file. Defaults to DATA_INPUT_DIR/knowledge_base.txt.
+        force: If True, re-ingest even if collection exists. Defaults to False.
+    
+    Returns:
+        QdrantVectorStore instance.
+    """
+    embeddings = get_embeddings()
+    client = get_qdrant_client()
+
+    collection_exists = client.collection_exists(settings.qdrant_collection)
+
+    if collection_exists and not force:
+        print(f"Loading existing vector store from disk: {settings.vector_db_path_resolved}")
+        vector_store = QdrantVectorStore(
+            client=client,
+            collection_name=settings.qdrant_collection,
+            embedding=embeddings,
+        )
+        return vector_store
+
+    if collection_exists and force:
+        print(f"Force re-ingesting: deleting existing collection '{settings.qdrant_collection}'")
+        client.delete_collection(settings.qdrant_collection)
+
+    print(f"Ingesting knowledge base into collection '{settings.qdrant_collection}'...")
     text = load_knowledge_base(file_path)
 
     splitter = RecursiveCharacterTextSplitter(
@@ -56,13 +85,6 @@ def ingest_knowledge_base(file_path: Path | None = None) -> QdrantVectorStore:
         separators=["\n\n", "\n", "。", ".", " ", ""],
     )
     chunks = splitter.split_text(text)
-
-    embeddings = get_embeddings()
-    client = get_qdrant_client()
-
-    collections = [c.name for c in client.get_collections().collections]
-    if settings.qdrant_collection in collections:
-        client.delete_collection(settings.qdrant_collection)
 
     sample_embedding = embeddings.embed_query("test")
     vector_size = len(sample_embedding)

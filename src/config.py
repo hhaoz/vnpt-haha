@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     """Application settings with environment variable support."""
 
     google_api_key: str = Field(default="", alias="GOOGLE_API_KEY")
-    llm_model: str = Field(default="gemini-2.5-flash-lite", alias="LLM_MODEL")
+    llm_model: str = Field(default="gemini-2.0-flash-lite", alias="LLM_MODEL")
     embedding_model: str = Field(
         default="bkai-foundation-models/vietnamese-bi-encoder",
         alias="EMBEDDING_MODEL",
@@ -28,9 +28,20 @@ class Settings(BaseSettings):
         default="vnpt_knowledge_base",
         alias="QDRANT_COLLECTION",
     )
+    vector_db_path: str = Field(
+        default="",
+        alias="VECTOR_DB_PATH",
+    )
     chunk_size: int = 500
     chunk_overlap: int = 50
     top_k_retrieval: int = 3
+
+    @property
+    def vector_db_path_resolved(self) -> Path:
+        """Resolve vector database path, defaulting to DATA_OUTPUT_DIR/qdrant_storage."""
+        if self.vector_db_path:
+            return Path(self.vector_db_path)
+        return DATA_OUTPUT_DIR / "qdrant_storage"
 
     class Config:
         env_file = ".env"

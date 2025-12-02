@@ -3,11 +3,10 @@
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_qdrant import QdrantVectorStore
-from qdrant_client import QdrantClient
 
 from src.config import settings
 from src.graph import GraphState
-from src.utils.ingestion import get_embeddings
+from src.utils.ingestion import get_embeddings, get_qdrant_client
 
 RAG_SYSTEM_PROMPT = """Bạn là trợ lý AI chuyên trả lời câu hỏi trắc nghiệm tiếng Việt.
 Dựa vào ngữ cảnh được cung cấp, hãy chọn đáp án đúng nhất.
@@ -38,10 +37,10 @@ def get_rag_llm() -> ChatGoogleGenerativeAI:
 _vector_store: QdrantVectorStore | None = None
 
 def get_vector_store() -> QdrantVectorStore:
-    """Get or initialize the Qdrant vector store."""
+    """Get or initialize the Qdrant vector store from persistent storage."""
     global _vector_store
     if _vector_store is None:
-        client = QdrantClient(":memory:")
+        client = get_qdrant_client()
         embeddings = get_embeddings()
         
         _vector_store = QdrantVectorStore(
@@ -62,18 +61,16 @@ def knowledge_rag_node(state: GraphState) -> dict:
     global _vector_store
 
     if _vector_store is None:
-        from src.utils.ingestion import ingest_knowledge_base
-        print("    ⚙️  Initializing Vector Store...")
-        _vector_store = ingest_knowledge_base()
+        _vector_store = get_vector_store()
 
     query = state["question"]
-    print(f"    🔍 Retrieving context for: '{query[:40]}...'")
+    print(f"    🔍 Retrieving context for: '{query}...'")
     
     docs = _vector_store.similarity_search(query, k=settings.top_k_retrieval)
     context = "\n\n".join([doc.page_content for doc in docs])
 
     if docs:
-        print(f"    📚 Found {len(docs)} docs. Top match: \"{docs[0].page_content[:60]}...\"")
+        print(f"    📚 Found {len(docs)} docs. Top match: \"{docs[0].page_content[:150]}...\"")
     else:
         print("    ⚠️  No relevant documents found in Knowledge Base.")
 
