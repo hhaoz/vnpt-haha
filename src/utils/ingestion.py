@@ -113,3 +113,101 @@ def ingest_knowledge_base(file_path: Path | None = None, force: bool = False) ->
     print(f"[Ingestion] Ingested {len(chunks)} chunks into collection '{settings.qdrant_collection}'")
     
     return _vector_store
+
+
+def ingest_from_crawled_data(
+    json_path: Path | str,
+    collection_name: str | None = None,
+    append: bool = False,
+) -> QdrantVectorStore:
+    """Ingest crawled JSON data into Qdrant vector store.
+
+    Args:
+        json_path: Path to crawled JSON file.
+        collection_name: Optional collection name. If None, uses settings.
+        append: If True, append to existing collection. If False, recreate.
+
+    Returns:
+        QdrantVectorStore instance.
+    """
+    import json
+
+    json_path = Path(json_path)
+    if not json_path.exists():
+        raise FileNotFoundError(f"Crawled data not found: {json_path}")
+
+    with open(json_path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    documents = data.get("documents", [])
+    if not documents:
+        raise ValueError(f"No documents found in {json_path}")
+
+    # Build texts with metadata
+    texts = []
+    metadatas = []
+    for doc in documents:
+        content = doc.get("content", "")
+        if content:
+            texts.append(content)
+            metadatas.append({
+                "source_url": doc.get("url", ""),
+                "title": doc.get("title", ""),
+                "summary": doc.get("summary", ""),
+                "topic": data.get("topic", ""),
+                "keywords": doc.get("keywords", "") if isinstance(doc.get("keywords"), str) else ",".join(doc.get("keywords", [])),
+                "domain": data.get("domain", ""),
+            })
+
+    if not texts:
+        raise ValueError(f"No content found in documents from {json_path}")
+
+    # Chunk the texts
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=settings.chunk_size,
+        chunk_overlap=settings.chunk_overlap,
+        separators=["\n\n", "\n", ".", " ", ""],
+    )
+
+    all_chunks = []
+    all_metadatas = []
+    for text, metadata in zip(texts, metadatas):
+        chunks = splitter.split_text(text)
+        for i, chunk in enumerate(chunks):
+            all_chunks.append(chunk)
+            chunk_metadata = metadata.copy()
+            chunk_metadata["chunk_index"] = i
+            chunk_metadata["total_chunks"] = len(chunks)
+            all_metadatas.append(chunk_metadata)
+
+    embeddings = get_embeddings()
+    client = get_qdrant_client()
+
+    coll_name = collection_name or settings.qdrant_collection
+    collections = [c.name for c in client.get_collections().collections]
+
+    if not append or coll_name not in collections:
+        # Create or recreate collection
+        if coll_name in collections:
+            client.delete_collection(coll_name)
+
+        sample_embedding = embeddings.embed_query("test")
+        vector_size = len(sample_embedding)
+
+        client.create_collection(
+            collection_name=coll_name,
+            vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+        )
+
+    vector_store = QdrantVectorStore(
+        client=client,
+        collection_name=coll_name,
+        embedding=embeddings,
+    )
+
+    vector_store.add_texts(all_chunks, metadatas=all_metadatas)
+
+    print(f"Ingested {len(all_chunks)} chunks from {len(documents)} documents")
+    print(f"Collection: '{coll_name}'")
+    print(f"Source: {data.get('source', json_path)}")
+    return vector_store
