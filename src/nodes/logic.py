@@ -13,7 +13,7 @@ from langchain_experimental.utilities import PythonREPL
 
 from src.config import settings
 from src.graph import GraphState
-from src.utils.llm import get_huggingface_llm
+from src.utils.llm import get_large_model
 
 _python_repl = PythonREPL()
 
@@ -59,7 +59,7 @@ def logic_solver_node(state: GraphState) -> dict:
     Manual Code Agent Loop:
     LLM Gen Code -> Regex Extract -> PythonREPL -> LLM Output Final Answer
     """
-    llm = get_huggingface_llm() 
+    llm = get_large_model() 
     question_content = f"""
 
     Câu hỏi: {state["question"]}

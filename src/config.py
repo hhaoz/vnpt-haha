@@ -18,9 +18,13 @@ DATA_OUTPUT_DIR = Path(os.getenv("DATA_OUTPUT_DIR", PROJECT_ROOT / "data"))
 class Settings(BaseSettings):
     """Application settings with environment variable support."""
 
-    llm_model: str = Field(
+    llm_model_small: str = Field(
         default="/mnt/dataset1/pretrained_fm/Qwen_Qwen3-4B-Instruct-2507",
-        alias="LLM_MODEL",
+        alias="LLM_MODEL_SMALL",
+    )
+    llm_model_large: str = Field(
+        default="/mnt/dataset1/pretrained_fm/Qwen_Qwen3-4B-Instruct-2507",
+        alias="LLM_MODEL_LARGE",
     )
     embedding_model: str = Field(
         default="bkai-foundation-models/vietnamese-bi-encoder",

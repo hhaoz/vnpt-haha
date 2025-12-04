@@ -6,7 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from src.config import settings
 from src.graph import GraphState
-from src.utils.llm import get_huggingface_llm
+from src.utils.llm import get_small_model
 
 ROUTER_SYSTEM_PROMPT = """Nhiệm vụ: Phân loại câu hỏi vào 1 trong 3 nhóm:
 1. "math": Tính toán, logic, đố mẹo, dãy số, bài toán đố.
@@ -30,8 +30,8 @@ Nhóm:"""
 
 
 def get_router_llm():
-    """Initialize router LLM."""
-    return get_huggingface_llm()
+    """Initialize router LLM (uses small model)."""
+    return get_small_model()
 
 
 def router_node(state: GraphState) -> dict:

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import torch
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -20,7 +21,7 @@ def get_embeddings() -> HuggingFaceEmbeddings:
     if _embeddings is None:
         _embeddings = HuggingFaceEmbeddings(
             model_name=settings.embedding_model,
-            model_kwargs={"device": "cpu"},
+            model_kwargs={"device": "cuda" if torch.cuda.is_available() else "cpu"},
             encode_kwargs={"normalize_embeddings": True},
         )
     return _embeddings
@@ -100,7 +101,7 @@ def ingest_knowledge_base(file_path: Path | None = None, force: bool = False) ->
         embedding=embeddings,
     )
 
-    vector_store.add_texts(chunks)
+    vector_store.add_texts(chunks, batch_size=64)
 
     print(f"Ingested {len(chunks)} chunks into collection '{settings.qdrant_collection}'")
     return vector_store

@@ -7,7 +7,7 @@ from langchain_qdrant import QdrantVectorStore
 from src.config import settings
 from src.graph import GraphState
 from src.utils.ingestion import get_embeddings, get_qdrant_client
-from src.utils.llm import get_huggingface_llm
+from src.utils.llm import get_large_model
 
 RAG_SYSTEM_PROMPT = """Bạn là trợ lý AI. Dựa vào văn bản cung cấp, hãy suy luận logic để chọn đáp án đúng nhất.
 
@@ -27,8 +27,8 @@ D. {option_d}"""
 
 
 def get_rag_llm():
-    """Initialize RAG LLM."""
-    return get_huggingface_llm()
+    """Initialize RAG LLM (uses large model)."""
+    return get_large_model()
 
 _vector_store: QdrantVectorStore | None = None
 
@@ -54,15 +54,12 @@ def set_vector_store(store: QdrantVectorStore) -> None:
 
 def knowledge_rag_node(state: GraphState) -> dict:
     """Retrieve relevant context and answer knowledge-based questions."""
-    global _vector_store
-
-    if _vector_store is None:
-        _vector_store = get_vector_store()
+    vector_store = get_vector_store()
 
     query = state["question"]
     print(f"    🔍 Retrieving context for: '{query}...'")
     
-    docs = _vector_store.similarity_search(query, k=settings.top_k_retrieval)
+    docs = vector_store.similarity_search(query, k=settings.top_k_retrieval)
     context = "\n\n".join([doc.page_content for doc in docs])
 
     if docs:
