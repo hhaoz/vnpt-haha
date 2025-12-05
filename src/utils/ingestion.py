@@ -14,7 +14,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 
-from src.config import DATA_INPUT_DIR, settings
+from src.config import DATA_INPUT_DIR, KB_DATA_DIR, settings
 from src.utils.logging import log_pipeline, print_log
 
 SUPPORTED_EXTENSIONS = {".json", ".pdf", ".docx", ".txt"}
@@ -323,7 +323,7 @@ def ingest_all_data(
     Recursively scans base_dir for JSON, PDF, DOCX, and TXT files.
 
     Args:
-        base_dir: Directory to scan (default: DATA_INPUT_DIR)
+        base_dir: Directory to scan (default: KB_DATA_DIR)
         force: If True, wipe collection and re-ingest everything
 
     Returns:
@@ -331,7 +331,7 @@ def ingest_all_data(
     """
     global _vector_store
 
-    base_dir = base_dir or DATA_INPUT_DIR
+    base_dir = base_dir or KB_DATA_DIR 
     embeddings = get_embeddings()
     client = get_qdrant_client()
     collection_name = settings.qdrant_collection

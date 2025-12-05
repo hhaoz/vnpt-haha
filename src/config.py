@@ -1,5 +1,3 @@
-"""Configuration settings for the RAG pipeline."""
-
 import os
 from pathlib import Path
 
@@ -11,8 +9,9 @@ load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-DATA_INPUT_DIR = Path(os.getenv("DATA_INPUT_DIR", PROJECT_ROOT / "data"))
-DATA_OUTPUT_DIR = Path(os.getenv("DATA_OUTPUT_DIR", PROJECT_ROOT / "data"))
+KB_DATA_DIR = Path(os.getenv("KB_DATA_DIR", PROJECT_ROOT / "data"))
+DATA_INPUT_DIR = Path(os.getenv("DATA_INPUT_DIR", PROJECT_ROOT / "test_data"))
+DATA_OUTPUT_DIR = Path(os.getenv("DATA_OUTPUT_DIR", PROJECT_ROOT / "test_output"))
 BATCH_SIZE = 4
 
 
