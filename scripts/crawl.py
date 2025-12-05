@@ -18,6 +18,7 @@ _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
+from src.config import DATA_CRAWLED_DIR
 from src.utils.web_crawler import crawl_website, save_crawled_data
 
 EPILOG = """
@@ -40,7 +41,7 @@ def main():
                         default="links", help="Crawl mode (default: links)")
     parser.add_argument("--topic", help="Topic filter (required for links/search mode)")
     parser.add_argument("--max-pages", type=int, default=10, help="Max pages (default: 10)")
-    parser.add_argument("--output-dir", default="data/crawled", help="Output directory")
+    parser.add_argument("--output-dir", default=str(DATA_CRAWLED_DIR), help="Output directory")
     parser.add_argument("--output-file", help="Output filename (auto if not set)")
     parser.add_argument("--api-key", help="Firecrawl API key")
 

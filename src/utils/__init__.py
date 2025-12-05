@@ -9,6 +9,7 @@ from src.utils.ingestion import (
     normalize_text,
 )
 from src.utils.llm import get_large_model, get_small_model
+from src.utils.text_utils import extract_answer
 from src.utils.web_crawler import WebCrawler, crawl_website, save_crawled_data
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "normalize_text",
     "get_small_model",
     "get_large_model",
+    "extract_answer",
     "WebCrawler",
     "crawl_website",
     "save_crawled_data",

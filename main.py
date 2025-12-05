@@ -37,7 +37,7 @@ class PredictionOutput(BaseModel):
     """Output schema for a prediction."""
 
     qid: str = Field(description="Question identifier")
-    answer: str = Field(description="Predicted answer: A, B, C, D, ... or 'Từ chối trả lời'")
+    answer: str = Field(description="Predicted answer: A, B, C, D, ...")
 
 
 def _choices_to_options(choices: list[str]) -> dict[str, str]:
@@ -141,11 +141,8 @@ async def run_pipeline_async(
             valid_answers = option_labels[:num_choices]
 
             if answer not in valid_answers:
-                if answer.upper() in ["TỪ CHỐI TRẢ LỜI", "TỪCHỐITRẢLỜI"]:
-                    answer = "Từ chối trả lời"
-                else:
-                    print_log(f"        [Warning] Invalid answer '{answer}' for {q.qid}, defaulting to A")
-                    answer = "A"
+                print_log(f"        [Warning] Invalid answer '{answer}' for {q.qid}, defaulting to A")
+                answer = "A"
 
             log_done(f"{q.qid}: {answer} (Route: {route})")
             return PredictionOutput(qid=q.qid, answer=answer)
@@ -173,8 +170,8 @@ def save_predictions(predictions: list[PredictionOutput], output_path: Path) -> 
 def _find_test_file() -> Path | None:
     """Find the first available test JSON file in DATA_INPUT_DIR."""
     candidates = [
-        "val.json",
         "test.json",
+        "val.json",
         "private_test.json",
         "public_test.json",
     ]

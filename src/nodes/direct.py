@@ -2,8 +2,8 @@
 
 from langchain_core.prompts import ChatPromptTemplate
 
-from src.nodes.rag import extract_answer
 from src.state import GraphState, format_choices, get_choices_from_state
+from src.utils.text_utils import extract_answer
 from src.utils.llm import get_large_model
 from src.utils.logging import print_log
 
@@ -43,4 +43,4 @@ def direct_answer_node(state: GraphState) -> dict:
 
     answer = extract_answer(content, max_choices=len(all_choices) or 4)
     print_log(f"        [Direct] Final Answer: {answer}")
-    return {"answer": answer}
+    return {"answer": answer, "raw_response": content}

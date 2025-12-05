@@ -19,6 +19,8 @@ from dotenv import load_dotenv
 from firecrawl import FirecrawlApp
 from tqdm import tqdm
 
+from src.config import DATA_CRAWLED_DIR
+
 load_dotenv()
 
 DELAY_SECONDS = 6
@@ -286,9 +288,12 @@ def crawl_website(
     }
 
 
-def save_crawled_data(data: dict, output_dir: str = "data/crawled", filename: str | None = None) -> Path:
+def save_crawled_data(data: dict, output_dir: str | Path | None = None, filename: str | None = None) -> Path:
     """Save crawled data to JSON."""
-    output_path = Path(output_dir)
+    if output_dir is None:
+        output_path = DATA_CRAWLED_DIR
+    else:
+        output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     
     if not filename:

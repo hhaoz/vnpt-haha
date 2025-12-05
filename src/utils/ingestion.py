@@ -4,7 +4,7 @@ import json
 import re
 import unicodedata
 from pathlib import Path
-
+from tqdm import tqdm
 import httpx
 import torch
 from langchain_core.embeddings import Embeddings
@@ -77,14 +77,20 @@ class VNPTEmbeddings(Embeddings):
             raise RuntimeError(f"Unexpected VNPT Embedding API response: {e}") from e
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        """Embed a list of documents."""
+        """Embed a list of documents with accurate progress bar."""
         if not texts:
             return []
-        batch_size = 32
+        
+        batch_size = 32 
         all_embeddings = []
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i : i + batch_size]
-            all_embeddings.extend(self._embed(batch))
+        
+        with tqdm(total=len(texts), desc="Embedding API", unit="chunk", leave=False) as pbar:
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i : i + batch_size]
+                embeddings = self._embed(batch)
+                all_embeddings.extend(embeddings)
+                pbar.update(len(batch))
+            
         return all_embeddings
 
     def embed_query(self, text: str) -> list[float]:
@@ -109,9 +115,8 @@ def normalize_text(text: str) -> str:
     text = unicodedata.normalize("NFKC", text)
     # Remove zero-width characters
     text = re.sub(r"[\u200b\u200c\u200d\ufeff]", "", text)
-    # Normalize whitespace: replace multiple spaces/tabs with single space
+    # Normalize whitespace & newlines
     text = re.sub(r"[ \t]+", " ", text)
-    # Normalize newlines: max 2 consecutive newlines
     text = re.sub(r"\n{3,}", "\n\n", text)
     # Strip leading/trailing whitespace from each line
     lines = [line.strip() for line in text.splitlines()]
@@ -364,7 +369,6 @@ def ingest_all_data(
 
     log_pipeline(f"Found {len(files)} files to ingest from {base_dir}")
 
-    # Initialize collection
     sample_embedding = embeddings.embed_query("test")
     _initialize_collection(client, collection_name, len(sample_embedding), force_recreate=force)
 
@@ -384,37 +388,50 @@ def ingest_all_data(
     total_docs = 0
     failed_files = 0
 
-    for file_path in files:
-        try:
-            if file_path.suffix.lower() == ".json":
-                chunks, metadatas = _process_crawled_json(file_path)
-                if chunks:
-                    _vector_store.add_texts(chunks, metadatas=metadatas)
-                    total_chunks += len(chunks)
-                    total_docs += 1
-                    print_log(f"        [Ingest] {file_path.name}: {len(chunks)} chunks")
+    with tqdm(total=len(files), desc="Processing Files", unit="file", position=0) as pbar:
+        for file_path in files:
+            try:
+                pbar.set_postfix_str(f"Current: {file_path.name}")
+                
+                chunks_to_add = []
+                metadatas_to_add = []
+
+                if file_path.suffix.lower() == ".json":
+                    chunks, metadatas = _process_crawled_json(file_path)
+                    if chunks:
+                        chunks_to_add = chunks
+                        metadatas_to_add = metadatas
+                    else:
+                        tqdm.write(f"        [Warning] {file_path.name}: No content found")
                 else:
-                    print_log(f"        [Warning] {file_path.name}: No content found")
-            else:
-                text, metadata = _load_document(file_path)
-                if text and metadata:
-                    chunks = splitter.split_text(text)
-                    metadatas = []
-                    for i, chunk in enumerate(chunks):
-                        chunk_meta = metadata.copy()
-                        chunk_meta["chunk_index"] = i
-                        chunk_meta["total_chunks"] = len(chunks)
-                        metadatas.append(chunk_meta)
+                    text, metadata = _load_document(file_path)
+                    if text and metadata:
+                        chunks = splitter.split_text(text)
+                        metadatas = []
+                        for i, chunk in enumerate(chunks):
+                            chunk_meta = metadata.copy()
+                            chunk_meta["chunk_index"] = i
+                            chunk_meta["total_chunks"] = len(chunks)
+                            metadatas.append(chunk_meta)
+                        
+                        chunks_to_add = chunks
+                        metadatas_to_add = metadatas
 
-                    _vector_store.add_texts(chunks, metadatas=metadatas)
-                    total_chunks += len(chunks)
+                if chunks_to_add:
+                    _vector_store.add_texts(
+                        chunks_to_add, 
+                        metadatas=metadatas_to_add,
+                        batch_size=len(chunks_to_add) 
+                    )
+                    total_chunks += len(chunks_to_add)
                     total_docs += 1
-                    print_log(f"        [Ingest] {file_path.name}: {len(chunks)} chunks")
+                    tqdm.write(f"        [Ingest] {file_path.name}: {len(chunks_to_add)} chunks")
 
-        except Exception as e:
-            print_log(f"        [Error] {file_path.name}: {e}")
-            failed_files += 1
-            continue
+            except Exception as e:
+                tqdm.write(f"        [Error] {file_path.name}: {e}")
+                failed_files += 1
+            finally:
+                pbar.update(1)
 
     log_pipeline(f"Ingestion complete: {total_docs} files, {total_chunks} chunks")
     if failed_files > 0:
@@ -460,32 +477,45 @@ def ingest_files(
 
     total_chunks = 0
 
-    for file_path in file_paths:
-        try:
-            if file_path.suffix.lower() == ".json":
-                chunks, metadatas = _process_crawled_json(file_path)
-                if chunks:
-                    vector_store.add_texts(chunks, metadatas=metadatas)
-                    total_chunks += len(chunks)
-                    print(f"[Ingest] {file_path.name}: {len(chunks)} chunks")
-            else:
-                text, metadata = _load_document(file_path)
-                if text and metadata:
-                    chunks = splitter.split_text(text)
-                    metadatas = []
-                    for i, chunk in enumerate(chunks):
-                        chunk_meta = metadata.copy()
-                        chunk_meta["chunk_index"] = i
-                        chunk_meta["total_chunks"] = len(chunks)
-                        metadatas.append(chunk_meta)
+    with tqdm(total=len(file_paths), desc="Ingesting Files", unit="file") as pbar:
+        for file_path in file_paths:
+            try:
+                pbar.set_postfix_str(f"Current: {file_path.name}")
+                chunks_to_add = []
+                metadatas_to_add = []
 
-                    vector_store.add_texts(chunks, metadatas=metadatas)
-                    total_chunks += len(chunks)
-                    print(f"[Ingest] {file_path.name}: {len(chunks)} chunks")
+                if file_path.suffix.lower() == ".json":
+                    chunks, metadatas = _process_crawled_json(file_path)
+                    if chunks:
+                        chunks_to_add = chunks
+                        metadatas_to_add = metadatas
+                else:
+                    text, metadata = _load_document(file_path)
+                    if text and metadata:
+                        chunks = splitter.split_text(text)
+                        metadatas = []
+                        for i, chunk in enumerate(chunks):
+                            chunk_meta = metadata.copy()
+                            chunk_meta["chunk_index"] = i
+                            chunk_meta["total_chunks"] = len(chunks)
+                            metadatas.append(chunk_meta)
+                        chunks_to_add = chunks
+                        metadatas_to_add = metadatas
 
-        except Exception as e:
-            print(f"[Error] {file_path.name}: {e}")
-            continue
+                if chunks_to_add:
+                    vector_store.add_texts(
+                        chunks_to_add, 
+                        metadatas=metadatas_to_add,
+                        batch_size=len(chunks_to_add)
+                    )
+                    total_chunks += len(chunks_to_add)
+                    tqdm.write(f"[Ingest] {file_path.name}: {len(chunks_to_add)} chunks")
+
+            except Exception as e:
+                tqdm.write(f"[Error] {file_path.name}: {e}")
+                continue
+            finally:
+                pbar.update(1)
 
     print(f"[Done] Total: {total_chunks} chunks in '{collection_name}'")
     return total_chunks

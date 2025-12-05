@@ -17,6 +17,7 @@ class GraphState(TypedDict, total=False):
     route: str
     context: str
     answer: str
+    raw_response: str  # Full LLM output before answer extraction
     code_executed: str
     code_output: str
 

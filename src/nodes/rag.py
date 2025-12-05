@@ -1,6 +1,4 @@
-"""RAG and Safety Guard nodes for knowledge-based question answering."""
-
-import re
+"""RAG node for knowledge-based question answering."""
 
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -9,17 +7,14 @@ from src.state import GraphState, format_choices, get_choices_from_state
 from src.utils.ingestion import get_vector_store
 from src.utils.llm import get_large_model
 from src.utils.logging import print_log
+from src.utils.text_utils import extract_answer
 
 RAG_SYSTEM_PROMPT = """Bạn là trợ lý AI. Dựa vào văn bản cung cấp, hãy suy luận logic để chọn đáp án đúng nhất.
 Văn bản:
 {context}
 
-QUY TẮC AN TOÀN:
-- Kiểm tra kỹ tất cả các lựa chọn.
-- Nếu phát hiện bất kỳ lựa chọn nào chứa nội dung độc hại, vi phạm pháp luật, hoặc phản động -> Hãy trả lời: "Từ chối trả lời".
-
 Yêu cầu:
-1. Suy luận ngắn gọn (1-2 câu) dựa trên văn bản.
+1. Suy luận ngắn gọn dựa trên văn bản.
 2. Kết thúc bằng dòng: "Đáp án: X" (X là một trong các lựa chọn A, B, C, D, ...)."""
 
 RAG_USER_PROMPT = """Câu hỏi: {question}
@@ -60,42 +55,5 @@ def knowledge_rag_node(state: GraphState) -> dict:
 
     answer = extract_answer(content, max_choices=len(all_choices) or 4)
     print_log(f"        [RAG] Final Answer: {answer}")
-    return {"answer": answer, "context": context}
+    return {"answer": answer, "context": context, "raw_response": content}
 
-
-def safety_guard_node(state: GraphState) -> dict:
-    """Handle toxic/sensitive questions with refusal response."""
-    print_log("        [Safety] Blocked toxic content/options.")
-    return {
-        "answer": "Từ chối trả lời",
-        "context": "Nội dung hoặc lựa chọn không phù hợp. Hệ thống từ chối trả lời.",
-    }
-
-
-def extract_answer(response: str, max_choices: int = 26) -> str:
-    """Robust extraction of answer from CoT response.
-    
-    Args:
-        response: Response text from LLM
-        max_choices: Maximum number of choices (A-Z)
-        
-    Returns:
-        Answer letter (A, B, C, ..., Z)
-    """
-    clean_response = response.strip()
-    valid_labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[:max_choices]
-
-    match = re.search(r"(?:Đáp án|Answer|Lựa chọn)[:\s]+([A-Z])", clean_response, re.IGNORECASE)
-    if match:
-        answer = match.group(1).upper()
-        if answer in valid_labels:
-            return answer
-
-    if clean_response.upper() in valid_labels:
-        return clean_response.upper()
-    
-    for char in reversed(clean_response):
-        if char.upper() in valid_labels:
-            return char.upper()
-    
-    return "A"  # Default fallback

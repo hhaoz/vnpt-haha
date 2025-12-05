@@ -6,7 +6,7 @@ This project implements a modular, model-agnostic workflow using **LangGraph** t
 
 ## 🚀 Key Features
 
-- **Agentic Workflow**: Utilizes a **Router Node** to classify questions into distinct domains (Math, Knowledge, Direct Comprehension, or Toxic) and routes them to specialized solvers.
+- **Agentic Workflow**: Utilizes a **Router Node** to classify questions into distinct domains (Math, Knowledge, Direct Comprehension, or Toxic) and routes them to specialized solvers. Toxic content is handled immediately in the router by finding refusal options.
 - **Program-Aided Language Models (PAL)**:
   - Solves math and logic problems by generating and executing Python code via a local REPL.
   - **Self-Correction Loop**: Iteratively executes code, captures output, and corrects errors (up to 5 retry steps).
@@ -20,7 +20,7 @@ This project implements a modular, model-agnostic workflow using **LangGraph** t
 - **Quota Optimization**:
   - **Tiered Modeling Architecture**: Lightweight "Small" models for routing, "Large" models for deep reasoning/RAG.
   - **Smart Caching**: Local disk caching for **Qdrant** to prevent redundant re-embedding.
-- **Responsible AI**: Safety guardrails to detect and refuse toxic, dangerous, or politically sensitive content.
+- **Responsible AI**: Safety guardrails in the router node to detect and refuse toxic, dangerous, or politically sensitive content by automatically selecting refusal options.
 
 ## 🏗️ Architecture
 
@@ -33,7 +33,7 @@ graph TD
     RouterNode -- "Math/Logic" --> LogicSolver[Logic Solver - Code Agent<br/>Large Model]
     RouterNode -- "History/Culture/Law" --> KnowledgeRAG[Knowledge RAG - Retrieval<br/>Large Model]
     RouterNode -- "Reading/General" --> DirectAnswer[Direct Answer - Zero-shot<br/>Large Model]
-    RouterNode -- "Toxic/Sensitive" --> SafetyGuard[Safety Guard - Refusal]
+    RouterNode -- "Toxic/Sensitive" --> End([Final Answer<br/>Refusal Option])
     
     subgraph "Knowledge Processing"
         KnowledgeRAG <--> VectorDB[(Qdrant Local Disk)]
@@ -44,19 +44,17 @@ graph TD
         LogicSolver <--> PythonREPL[Python Interpreter<br/>Iterative Execution]
     end
     
-    LogicSolver --> End([Final Answer])
+    LogicSolver --> End
     KnowledgeRAG --> End
     DirectAnswer --> End
-    SafetyGuard --> End
 ```
 
 ### Components
 
-1.  **Router Node**: A classifier using a small LLM to categorize inputs into: Math, RAG (Lookup), Direct (Reading Comprehension), or Toxic.
+1.  **Router Node**: A classifier using a small LLM to categorize inputs into: Math, RAG (Lookup), Direct (Reading Comprehension), or Toxic. When toxic content is detected, it automatically finds and returns the refusal option from choices (or defaults to "A" if none found), bypassing other nodes.
 2.  **Logic Solver**: A Code Agent that extracts Python code from LLM responses, executes it locally, and parses the standard output. Includes error handling and retry logic.
 3.  **Knowledge RAG**: Retrieves relevant context from the Qdrant vector store and generates answers using the large LLM.
 4.  **Direct Answer**: Handles reading comprehension questions (based on provided text in the prompt) or general questions where retrieval is unnecessary.
-5.  **Safety Guard**: A deterministic sink node that provides standard refusal responses for content classified as "Toxic".
 
 ## 🛠️ Tech Stack
 
@@ -152,7 +150,7 @@ uv run python main.py
 
   * **Input Priority:** The system looks for JSON files in `data/` in this order: `val.json`, `test.json`, `private_test.json`, `public_test.json`.
   * **Input Format:** JSON array with structure: `[{"qid": "...", "question": "...", "choices": ["A", "B", "C", "D"], "answer": "A"}, ...]`
-  * **Output:** Results are saved to `data/submission.csv`.
+  * **Output:** Results are saved to `output/submission.csv`.
 
 ## 📂 Project Structure
 
@@ -171,14 +169,15 @@ vnpt-ai/
 │   ├── graph.py          # LangGraph workflow definition
 │   ├── state.py          # GraphState schema & utility functions
 │   ├── nodes/
-│   │   ├── router.py     # Classification Logic
-│   │   ├── rag.py        # Retrieval & Safety Logic
+│   │   ├── router.py     # Classification & Toxic Handling Logic
+│   │   ├── rag.py        # Retrieval Logic
 │   │   ├── logic.py      # Python Code Agent Logic
 │   │   └── direct.py     # Direct Reading Comprehension Logic
 │   └── utils/
 │       ├── llm.py        # Hybrid Model Loading (Local/API)
 │       ├── ingestion.py  # Qdrant Ingestion, Text Normalization & Caching
 │       ├── logging.py    # Color-coded logging utilities
+│       ├── text_utils.py # Text processing utilities (answer extraction)
 │       └── web_crawler.py # Web crawler utilities
 ├── main.py               # Application Entry Point (Async)
 └── pyproject.toml        # Dependencies & Project Metadata

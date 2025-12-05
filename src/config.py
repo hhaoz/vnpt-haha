@@ -11,9 +11,11 @@ load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-DATA_INPUT_DIR = Path(os.getenv("DATA_INPUT_DIR", PROJECT_ROOT / "data"))
-DATA_OUTPUT_DIR = Path(os.getenv("DATA_OUTPUT_DIR", PROJECT_ROOT / "data"))
-BATCH_SIZE = 4
+DATA_DIR = Path(os.getenv("DATA_DIR", PROJECT_ROOT / "data"))
+DATA_INPUT_DIR = Path(os.getenv("DATA_INPUT_DIR", DATA_DIR))
+DATA_OUTPUT_DIR = Path(os.getenv("DATA_OUTPUT_DIR", PROJECT_ROOT / "output"))
+DATA_CRAWLED_DIR = Path(os.getenv("DATA_CRAWLED_DIR", DATA_DIR / "crawled"))
+BATCH_SIZE = 1
 
 
 class Settings(BaseSettings):
@@ -107,17 +109,16 @@ class Settings(BaseSettings):
         alias="VECTOR_DB_PATH",
     )
 
-    # Chunking
-    chunk_size: int = 500
-    chunk_overlap: int = 50
+    chunk_size: int = 1000
+    chunk_overlap: int = 100
     top_k_retrieval: int = 3
 
     @property
     def vector_db_path_resolved(self) -> Path:
-        """Resolve vector database path, defaulting to DATA_OUTPUT_DIR/qdrant_storage."""
+        """Resolve vector database path, defaulting to DATA_DIR/qdrant_storage."""
         if self.vector_db_path:
             return Path(self.vector_db_path)
-        return DATA_OUTPUT_DIR / "qdrant_storage"
+        return DATA_DIR / "qdrant_storage"
 
     class Config:
         env_file = ".env"

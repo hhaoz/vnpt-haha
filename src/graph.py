@@ -4,7 +4,7 @@ from langgraph.graph import END, StateGraph
 
 from src.state import GraphState
 from src.nodes.logic import logic_solver_node
-from src.nodes.rag import knowledge_rag_node, safety_guard_node
+from src.nodes.rag import knowledge_rag_node
 from src.nodes.router import route_question, router_node
 from src.nodes.direct import direct_answer_node
 
@@ -17,7 +17,6 @@ def build_graph() -> StateGraph:
     workflow.add_node("router", router_node)
     workflow.add_node("knowledge_rag", knowledge_rag_node)
     workflow.add_node("logic_solver", logic_solver_node)
-    workflow.add_node("safety_guard", safety_guard_node)
     workflow.add_node("direct_answer", direct_answer_node)
     
     workflow.set_entry_point("router")
@@ -28,14 +27,13 @@ def build_graph() -> StateGraph:
         {
             "knowledge_rag": "knowledge_rag",
             "logic_solver": "logic_solver",
-            "safety_guard": "safety_guard",
             "direct_answer": "direct_answer",
+            "__end__": END,
         },
     )
 
     workflow.add_edge("knowledge_rag", END)
     workflow.add_edge("logic_solver", END)
-    workflow.add_edge("safety_guard", END)
     workflow.add_edge("direct_answer", END)
     return workflow.compile()
 

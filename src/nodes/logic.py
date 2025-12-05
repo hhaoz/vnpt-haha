@@ -6,6 +6,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_experimental.utilities import PythonREPL
 
 from src.state import GraphState, format_choices, get_choices_from_state
+from src.utils.text_utils import extract_answer
 from src.utils.llm import get_large_model
 from src.utils.logging import print_log
 
@@ -46,15 +47,6 @@ def extract_python_code(text: str) -> str | None:
     return None
 
 
-def extract_answer(text: str, max_choices: int = 26) -> str | None:
-    """Find 'Đáp án: X' in the text response"""
-    valid_labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[:max_choices]
-    match = re.search(r"Đáp án:\s*([A-Z])", text, re.IGNORECASE)
-    if match:
-        answer = match.group(1).upper()
-        if answer in valid_labels:
-            return answer
-    return None
 
 
 def _indent_code(code: str) -> str:
