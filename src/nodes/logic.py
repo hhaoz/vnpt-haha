@@ -67,10 +67,13 @@ def logic_solver_node(state: GraphState) -> dict:
         HumanMessage(content=question_content)
     ]
 
+    raw_responses: list[str] = []  # Collect all LLM responses for debugging
+
     max_steps = 5
     for step in range(max_steps):
         response = llm.invoke(messages)
         content = response.content
+        raw_responses.append(content)
         messages.append(response)
 
         code_block = extract_python_code(content)
@@ -97,7 +100,8 @@ def logic_solver_node(state: GraphState) -> dict:
                 code_ans = extract_answer(output, max_choices=len(all_choices) or 4)
                 if code_ans:
                     print_log(f"        [Logic] Final Answer: {code_ans}")
-                    return {"answer": code_ans}
+                    combined_raw = "\n---STEP---\n".join(raw_responses)
+                    return {"answer": code_ans, "raw_response": combined_raw}
 
                 feedback_msg = f"Kết quả chạy code: {output}.\n"
                 feedback_msg += "Lưu ý: Bạn vẫn chưa đưa ra đáp án cuối cùng, duyệt lại code và các đáp án để chỉnh sửa phù hợp."
@@ -116,4 +120,5 @@ def logic_solver_node(state: GraphState) -> dict:
             messages.append(HumanMessage(content="Lưu ý: Bạn vẫn chưa đưa ra đáp án cuối cùng, duyệt lại code và các đáp án để chỉnh sửa phù hợp."))
 
     print_log("        [Warning] Max steps reached. Defaulting to A.")
-    return {"answer": "A"}
+    combined_raw = "\n---STEP---\n".join(raw_responses) if raw_responses else ""
+    return {"answer": "A", "raw_response": combined_raw}

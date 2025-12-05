@@ -1,4 +1,4 @@
-"""Entry point for running the RAG pipeline on test data."""
+"""Entry point for running the RAG pipeline on test data with resume capability."""
 
 import asyncio
 import csv
@@ -19,7 +19,6 @@ from src.utils.logging import (
     log_main,
     log_pipeline,
     log_stats,
-    print_header,
     print_log,
 )
 
@@ -38,6 +37,20 @@ class PredictionOutput(BaseModel):
 
     qid: str = Field(description="Question identifier")
     answer: str = Field(description="Predicted answer: A, B, C, D, ...")
+
+
+class InferenceLogEntry(BaseModel):
+    """Schema for JSONL log entry."""
+
+    qid: str
+    final_answer: str
+    raw_response: str
+    route: str
+    retrieved_context: str
+
+
+# Global lock for thread-safe JSONL writes
+_jsonl_lock = asyncio.Lock()
 
 
 def _choices_to_options(choices: list[str]) -> dict[str, str]:
@@ -111,30 +124,93 @@ def _format_choices_display(choices: list[str]) -> str:
     return "\n".join(lines)
 
 
+def load_processed_qids(log_path: Path) -> set[str]:
+    """Load already processed question IDs from JSONL log."""
+    processed = set()
+    if not log_path.exists():
+        return processed
+
+    with open(log_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                if "qid" in entry:
+                    processed.add(entry["qid"])
+            except json.JSONDecodeError:
+                continue
+
+    return processed
+
+
+async def append_log_entry(log_path: Path, entry: InferenceLogEntry) -> None:
+    """Append a single log entry to JSONL file (thread-safe)."""
+    async with _jsonl_lock:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(entry.model_dump_json() + "\n")
+
+
+def generate_csv_from_log(log_path: Path, output_path: Path) -> int:
+    """Generate submission CSV from JSONL log. Returns count of entries."""
+    entries: dict[str, str] = {}
+
+    if log_path.exists():
+        with open(log_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    entries[entry["qid"]] = entry["final_answer"]
+                except (json.JSONDecodeError, KeyError):
+                    continue
+
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["qid", "answer"])
+        writer.writeheader()
+        for qid, answer in entries.items():
+            writer.writerow({"qid": qid, "answer": answer})
+
+    return len(entries)
+
+
 async def run_pipeline_async(
     questions: list[QuestionInput],
+    log_path: Path,
     force_reingest: bool = False,
     batch_size: int = BATCH_SIZE,
-) -> list[PredictionOutput]:
-    """Run pipeline with Semaphore for maximum throughput."""
+) -> int:
+    """Run pipeline with checkpointing. Returns count of newly processed questions."""
     log_pipeline("Initializing knowledge base...")
     ingest_all_data(force=force_reingest)
 
     graph = get_graph()
     total = len(questions)
     start_time = time.perf_counter()
+    processed_count = 0
 
     sem = asyncio.Semaphore(batch_size)
 
-    async def process_single_question(q: QuestionInput):
+    async def process_single_question(q: QuestionInput) -> bool:
+        nonlocal processed_count
         async with sem:
             print_log(f"\n[{q.qid}] {q.question}")
             print(_format_choices_display(q.choices))
             state = question_to_state(q)
-            result = await graph.ainvoke(state)
 
-            answer = result["answer"]
+            try:
+                result = await graph.ainvoke(state)
+            except Exception as e:
+                print_log(f"        [Error] Failed to process {q.qid}: {e}")
+                return False
+
+            answer = result.get("answer", "A")
             route = result.get("route", "unknown")
+            raw_response = result.get("raw_response", "")
+            context = result.get("context", "")
 
             num_choices = len(q.choices)
             option_labels = string.ascii_uppercase
@@ -144,27 +220,27 @@ async def run_pipeline_async(
                 print_log(f"        [Warning] Invalid answer '{answer}' for {q.qid}, defaulting to A")
                 answer = "A"
 
+            log_entry = InferenceLogEntry(
+                qid=q.qid,
+                final_answer=answer,
+                raw_response=raw_response,
+                route=route,
+                retrieved_context=context,
+            )
+            await append_log_entry(log_path, log_entry)
+
             log_done(f"{q.qid}: {answer} (Route: {route})")
-            return PredictionOutput(qid=q.qid, answer=answer)
+            processed_count += 1
+            return True
 
     tasks = [process_single_question(q) for q in questions]
-    predictions = await asyncio.gather(*tasks)
+    await asyncio.gather(*tasks, return_exceptions=True)
 
     elapsed = time.perf_counter() - start_time
     throughput = total / elapsed if elapsed > 0 else 0
-    log_stats(f"Completed {total} questions in {elapsed:.2f}s ({throughput:.2f} req/s)")
+    log_stats(f"Processed {processed_count}/{total} questions in {elapsed:.2f}s ({throughput:.2f} req/s)")
 
-    return predictions
-
-
-def save_predictions(predictions: list[PredictionOutput], output_path: Path) -> None:
-    """Save predictions to CSV file."""
-    with open(output_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["qid", "answer"])
-        writer.writeheader()
-        for pred in predictions:
-            writer.writerow({"qid": pred.qid, "answer": pred.answer})
-    log_pipeline(f"Predictions saved to: {output_path}")
+    return processed_count
 
 
 def _find_test_file() -> Path | None:
@@ -183,7 +259,7 @@ def _find_test_file() -> Path | None:
 
 
 async def async_main(batch_size: int = BATCH_SIZE) -> None:
-    """Async main entry point."""
+    """Async main entry point with resume capability."""
     get_small_model()
     get_large_model()
     log_main("Models warmed up ready.")
@@ -197,13 +273,34 @@ async def async_main(batch_size: int = BATCH_SIZE) -> None:
         )
 
     log_main(f"Loading test data from: {input_file}")
-    questions = load_test_data(input_file)
-    log_main(f"Loaded {len(questions)} questions (batch_size={batch_size})")
+    all_questions = load_test_data(input_file)
+    log_main(f"Loaded {len(all_questions)} total questions")
 
-    predictions = await run_pipeline_async(questions, batch_size=batch_size)
+    # Resume: check for existing progress
+    log_path = DATA_OUTPUT_DIR / "inference_log.jsonl"
+    processed_qids = load_processed_qids(log_path)
 
+    if processed_qids:
+        log_main(f"Resuming: Found {len(processed_qids)} already processed questions")
+        remaining_questions = [q for q in all_questions if q.qid not in processed_qids]
+        log_main(f"Remaining: {len(remaining_questions)} questions to process")
+    else:
+        log_main("Starting fresh run (no existing checkpoint found)")
+        remaining_questions = all_questions
+
+    if remaining_questions:
+        await run_pipeline_async(
+            remaining_questions,
+            log_path,
+            batch_size=batch_size,
+        )
+    else:
+        log_main("All questions already processed. Skipping inference.")
+
+    # Generate final CSV from JSONL log
     output_file = DATA_OUTPUT_DIR / "submission.csv"
-    save_predictions(predictions, output_file)
+    total_entries = generate_csv_from_log(log_path, output_file)
+    log_pipeline(f"Generated submission.csv with {total_entries} entries: {output_file}")
 
 
 def main(batch_size: int = BATCH_SIZE) -> None:
