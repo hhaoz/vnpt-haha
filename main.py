@@ -4,6 +4,7 @@ import asyncio
 import csv
 import json
 import string
+import sys
 import time
 from pathlib import Path
 
@@ -43,6 +44,8 @@ class InferenceLogEntry(BaseModel):
     """Schema for JSONL log entry."""
 
     qid: str
+    question: str
+    choices: list[str]
     final_answer: str
     raw_response: str
     route: str
@@ -177,6 +180,12 @@ def generate_csv_from_log(log_path: Path, output_path: Path) -> int:
     return len(entries)
 
 
+def is_rate_limit_error(error: Exception) -> bool:
+    """Check if error is a VNPT API rate limit error."""
+    error_str = str(error)
+    return "401" in error_str and "Rate limit exceed" in error_str
+
+
 async def run_pipeline_async(
     questions: list[QuestionInput],
     log_path: Path,
@@ -205,6 +214,8 @@ async def run_pipeline_async(
                 result = await graph.ainvoke(state)
             except Exception as e:
                 print_log(f"        [Error] Failed to process {q.qid}: {e}")
+                if is_rate_limit_error(e):
+                    raise
                 return False
 
             answer = result.get("answer", "A")
@@ -222,6 +233,8 @@ async def run_pipeline_async(
 
             log_entry = InferenceLogEntry(
                 qid=q.qid,
+                question=q.question,
+                choices=q.choices,
                 final_answer=answer,
                 raw_response=raw_response,
                 route=route,
@@ -234,7 +247,15 @@ async def run_pipeline_async(
             return True
 
     tasks = [process_single_question(q) for q in questions]
-    await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for result in results:
+        if isinstance(result, Exception) and is_rate_limit_error(result):
+            log_pipeline("Rate limit exceeded. Saving progress and exiting...")
+            output_file = DATA_OUTPUT_DIR / "submission.csv"
+            total_entries = generate_csv_from_log(log_path, output_file)
+            log_pipeline(f"Saved submission.csv with {total_entries} entries: {output_file}")
+            sys.exit(0)
 
     elapsed = time.perf_counter() - start_time
     throughput = total / elapsed if elapsed > 0 else 0

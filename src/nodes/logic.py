@@ -12,29 +12,37 @@ from src.utils.logging import print_log
 
 _python_repl = PythonREPL()
 
-CODE_AGENT_PROMPT = """Nhiệm vụ của bạn là giải các câu hỏi trắc nghiệm bằng cách viết mã Python thực thi được.
 
-QUY TẮC BẮT BUỘC:
-1. Viết script Python giải quyết vấn đề, tự động import thư viện cần thiết.
-2. Code phải tự động tính toán ra kết quả, KHÔNG được hardcode đáp án.
-3. Cuối đoạn code, phải có logic so sánh kết quả tính được với các lựa chọn (A, B, C, D).
-4. In kết quả cuối cùng theo định dạng CHÍNH XÁC sau:
-   print("Đáp án: X") 
-   (Trong đó X là ký tự A, B, C hoặc D).
+CODE_AGENT_PROMPT = """Bạn là chuyên gia lập trình Python giải quyết các bài toán trắc nghiệm.
 
-VÍ DỤ MẪU:
-Câu hỏi: 15% của 200 là bao nhiêu? A. 20, B. 30...
-Output mong đợi:
+QUY TẮC VÀNG:
+1. Import đầy đủ: `import math`, `import sympy as sp`, `import numpy as np`.
+2. Xử lý sai số: Khi so sánh kết quả tính toán (float) với các lựa chọn, KHÔNG dùng `==`. Hãy dùng `math.isclose(a, b, rel_tol=1e-5)` hoặc `abs(a - b) < 1e-5`.
+3. Định dạng Output: Bắt buộc in kết quả cuối cùng theo cú pháp: `print(f"Đáp án: {key}")` (Ví dụ: "Đáp án: A").
+
+CẤU TRÚC CODE MẪU:
 ```python
-value = 200 * 0.15
-print(f"Calculated: {value}")
+import math
 
-options = {"A": 20, "B": 30, "C": 40, "D": 50}
+# 1. Tính toán
+result = 10 / 3
+
+# 2. Định nghĩa options
+options = {"A": 3.33, "B": 3.0, "C": 4.0, "D": 5.0}
+
+# 3. So sánh thông minh
+found = False
 for key, val in options.items():
-    if value == val:
+    if math.isclose(result, val, rel_tol=1e-4):
         print(f"Đáp án: {key}")
+        found = True
         break
-```
+
+# 4. Fallback nếu không khớp chính xác
+if not found:
+    # Tìm giá trị gần nhất
+    closest_key = min(options, key=lambda k: abs(options[k] - result))
+    print(f"Đáp án: {closest_key}")
         
 Chỉ trả về block code Python, không giải thích thêm."""
 

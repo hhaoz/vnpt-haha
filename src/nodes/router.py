@@ -43,19 +43,18 @@ def _find_refusal_option(state: GraphState) -> str | None:
     option_labels = list(string.ascii_uppercase[:len(all_choices)])
     
     refusal_patterns = [
-        "tôi không thể trả lời",
-        "tôi không thể cung cấp",
-        "tôi không thể chia sẻ",
-        "tôi từ chối trả lời",
-        "nằm ngoài phạm vi trả lời",
-        "câu hỏi không thể trả lời",
-        "từ chối",
+        "tôi không thể", "không thể trả lời", "không thể cung cấp", "không thể chia sẻ",
+        "từ chối trả lời", "từ chối cung cấp",
+        "nằm ngoài phạm vi", "không thuộc phạm vi",
+        "tôi là ai", "tôi là mô hình ngôn ngữ", 
+        "hành vi vi phạm", "trái pháp luật", "không hỗ trợ",
     ]
     
     for i, choice in enumerate(all_choices):
-        txt = choice.lower()
+        txt = choice.lower().strip()
         if any(p in txt for p in refusal_patterns):
             return option_labels[i]
+            
     return None
 
 

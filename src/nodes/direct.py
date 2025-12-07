@@ -13,6 +13,8 @@ Nhiệm vụ: Trả lời câu hỏi dựa trên thông tin được cung cấp 
 Lưu ý:
 1. Nếu đề bài có đoạn văn, CHỈ dựa vào đoạn văn đó để suy luận.
 2. Suy luận ngắn gọn, logic.
+- Với câu hỏi về ngày tháng, con số: So sánh chính xác từng ký tự.
+- Nếu câu hỏi yêu cầu tìm từ sai/đúng: Đối chiếu từng phương án với văn bản.
 3. Kết thúc bằng: "Đáp án: X" (X là một trong các lựa chọn A, B, C, D, ...)."""
 
 DIRECT_USER_PROMPT = """Câu hỏi: {question}

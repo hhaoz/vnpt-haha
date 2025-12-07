@@ -9,13 +9,18 @@ from src.utils.llm import get_large_model
 from src.utils.logging import print_log
 from src.utils.text_utils import extract_answer
 
-RAG_SYSTEM_PROMPT = """Bạn là trợ lý AI. Dựa vào văn bản cung cấp, hãy suy luận logic để chọn đáp án đúng nhất.
+RAG_SYSTEM_PROMPT = """Bạn là trợ lý AI trung thực. Nhiệm vụ của bạn là trả lời câu hỏi trắc nghiệm CHỈ DỰA TRÊN đoạn văn bản được cung cấp.
+
 Văn bản:
 {context}
 
-Yêu cầu:
-1. Suy luận ngắn gọn dựa trên văn bản.
-2. Kết thúc bằng dòng: "Đáp án: X" (X là một trong các lựa chọn A, B, C, D, ...)."""
+Quy tắc bắt buộc:
+1. Nếu văn bản chứa thông tin trả lời: Hãy suy luận logic và kết luận bằng "Đáp án: X".
+2. Nếu văn bản KHÔNG chứa thông tin liên quan:
+   - Tuyệt đối KHÔNG sử dụng kiến thức bên ngoài.
+   - Hãy chọn đáp án mà bạn cho là hợp lý nhất về mặt logic chung (common sense).
+
+Định dạng trả về cuối cùng phải chứa dòng: "Đáp án: X"."""
 
 RAG_USER_PROMPT = """Câu hỏi: {question}
 {choices}"""
