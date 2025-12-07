@@ -144,7 +144,7 @@ async def run_pipeline_with_checkpointing(
             print_log(f"\n[{q.qid}] {q.question}")
             print(format_choices_display(q.choices))
             state = question_to_state(q)
-
+            # await asyncio.sleep(25.0)
             try:
                 result = await graph.ainvoke(state)
                 answer = result.get("answer", "A")
