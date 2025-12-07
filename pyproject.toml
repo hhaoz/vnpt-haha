@@ -1,8 +1,7 @@
 [project]
 name = "vnpt-ai-rag"
 version = "0.1.0"
-description = "High-performance RAG pipeline for Vietnamese multiple-choice questions"
-readme = "README.md"
+description = "RAG pipeline for Vietnamese multiple-choice questions"
 requires-python = ">=3.10"
 dependencies = [
     "langgraph>=0.2.0",

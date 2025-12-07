@@ -68,3 +68,7 @@ htmlcov/
 dmypy.json
 
 repomix-output.xml
+
+
+test_data/
+test_output/

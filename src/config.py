@@ -1,5 +1,3 @@
-"""Configuration settings for the RAG pipeline."""
-
 import os
 from pathlib import Path
 

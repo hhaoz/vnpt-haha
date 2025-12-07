@@ -8,12 +8,9 @@ import sys
 import time
 from pathlib import Path
 
-from pydantic import BaseModel, Field
-
 from src.config import BATCH_SIZE, DATA_INPUT_DIR, DATA_OUTPUT_DIR
-from src.graph import get_graph
-from src.state import GraphState
-from src.utils.ingestion import ingest_all_data
+from src.pipeline import run_pipeline_async, save_predictions
+from src.data_processing.loaders import load_test_data_from_json
 from src.utils.llm import get_large_model, get_small_model
 from src.utils.logging import (
     log_done,
