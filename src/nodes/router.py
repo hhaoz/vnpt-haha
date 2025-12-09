@@ -60,16 +60,14 @@ def router_node(state: GraphState) -> dict:
     
     # Fast-track: Math/Logic for LaTeX or math keywords
     math_signals = [
-        "$", "\\frac", "^",
-        "tính giá trị", "biểu thức", "phương trình", "hàm số", "đạo hàm",
-        "xác suất", "lãi suất", "vận tốc", "gia tốc", "điện trở",
-        "gam", "mol", "nguyên tử khối",
+        "$", "\\frac", "^", "=", "tính giá trị", "biểu thức", "phương trình", 
+        "hàm số", "đạo hàm", "xác suất", "lãi suất", "vận tốc", "gia tốc", 
+        "điện trở", "gam", "mol", "nguyên tử khối", "gdp", "lạm phát", "công suất"
     ]
     if any(s in question for s in math_signals):
         print_log("        [Router] Fast-track: Math (Keywords/LaTeX detected)")
         return {"route": "math"}
     
-    # Slow-track: Use LLM for classification
     print_log("        [Router] Slow-track: Using LLM to classify...")
     try:
         route = _classify_with_llm(state)
@@ -79,8 +77,7 @@ def router_node(state: GraphState) -> dict:
             route_type = "direct"
         elif "math" in route or "logic" in route:
             route_type = "math"
-        elif "toxic" in route or "danger" in route or "harmful" in route:
-            # Check for refusal option and return answer immediately
+        elif "toxic" in route:
             refusal_answer = _find_refusal_option(state)
             if refusal_answer:
                 print_log(f"        [Router] Toxic detected, found refusal option: {refusal_answer}")
@@ -101,11 +98,8 @@ def route_question(state: GraphState) -> Literal["knowledge_rag", "logic_solver"
     route = state.get("route", "rag")
     answer = state.get("answer")
     
-    # Toxic questions are always resolved in router_node, go directly to END
     if route == "toxic":
-        print_log(f"        [Router] Toxic resolved with answer: {answer}")
-        return "__end__"
-    
+        return "__end__"    
     if route == "direct":
         return "direct_answer"
     if route == "math":

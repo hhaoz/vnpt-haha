@@ -77,9 +77,8 @@ def logic_solver_node(state: GraphState) -> dict:
                     combined_raw = "\n---STEP---\n".join(raw_responses)
                     return {"answer": code_ans, "raw_response": combined_raw}
 
-                feedback_msg = f"Kết quả chạy code: {output}.\n"
-                feedback_msg += "Lưu ý: Bạn vẫn chưa đưa ra đáp án cuối cùng, duyệt lại code và các đáp án để chỉnh sửa phù hợp."
-
+                feedback_msg = f"Code output: {output}.\n"
+                feedback_msg += "Lưu ý: Bạn vẫn chưa trả lời đáp án cuối cùng, duyệt lại code và các đáp án để chỉnh sửa phù hợp."
                 messages.append(HumanMessage(content=feedback_msg))
 
             except Exception as e:

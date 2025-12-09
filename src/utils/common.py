@@ -31,7 +31,7 @@ def normalize_text(text: str) -> str:
     # Normalize whitespace & newlines
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
-    
+    text = re.sub(r"http[s]?://\S+", "", text)
     # Strip leading/trailing whitespace from each line
     lines = [line.strip() for line in text.splitlines()]
     text = "\n".join(lines)

@@ -1,29 +1,37 @@
 # VNPT AI RAG Pipeline
 
-Agentic RAG Pipeline designed for the VNPT AI Hackathon (Track 2).
+Pipeline designed for the VNPT AI Hackathon (Track 2).
 
 This project implements a modular, model-agnostic workflow using **LangGraph** to intelligently route questions, execute Python code for complex reasoning, and retrieve knowledge from a persistent vector store.
 
-## 🚀 Key Features
+## Key Features
 
-- **Agentic Workflow**: Utilizes a **Router Node** to classify questions into distinct domains (Math, Knowledge, Direct Comprehension, or Toxic) and routes them to specialized solvers.
-- **🛡️ Safety First**: Toxic or policy-violating content is detected immediately in the router node, automatically selecting refusal options without invoking heavy reasoning models.
+- **Workflow**:
+  - Utilizes a **Router Node** to classify questions into distinct domains: *Math/Logic*, *Knowledge (History/Culture/Law)*, *Reading Comprehension*, or *Toxic*.
+  - Routes each question to the most specialized solver for optimal accuracy.
+
+- **Safety & Policy Compliance**:
+  - **Toxic Content Detection**: Sensitive or policy-violating content is identified immediately at the routing stage.
+  - **Fast-Track Refusal**: Automatically selects the appropriate refusal option without invoking heavy reasoning models, saving cost and time.
+
 - **Program-Aided Language Models (PAL)**:
-  - Solves math and logic problems by generating and executing Python code via a local REPL.
-  - **Self-Correction Loop**: Iteratively executes code, captures output, and corrects errors (up to 5 retry steps).
-- **🔄 Resumable Inference**: Built-in checkpointing system (`inference_log.jsonl`) allows the pipeline to resume from where it left off in case of crashes or API rate limits.
-- **Multi-Source Ingestion & Crawling**:
-  - **Firecrawl Integration**: Crawl websites (single page, full domain, or topic search).
-  - **Document Support**: Ingest JSON, PDF, DOCX, and TXT files into the Vector DB.
-  - **Text Normalization**: Automatic Unicode normalization and whitespace cleaning.
-- **Hybrid Model Selection**:
-  - Supports both **Local HuggingFace** models and **VNPT API** models.
-  - Granular credential configuration for Large, Small, and Embedding models.
-- **Quota Optimization**:
-  - **Tiered Modeling**: Lightweight "Small" models for routing, "Large" models for deep reasoning/RAG.
-  - **Local Vector Store**: Qdrant runs locally with disk persistence to prevent redundant re-embedding.
+  - **Code Agent**: Solves math and logic problems by generating and executing Python code via a local REPL, rather than relying solely on LLM hallucination.
+  - **Self-Correction Loop**: The agent iteratively executes code, captures output, and if an error occurs, attempts to correct its own code (up to 5 retry steps).
 
-## 🏗️ Architecture
+- **Robust Checkpointing & Resumability**:
+  - **Real-time Saving**: Every processed question is immediately saved to `inference_log.jsonl`.
+  - **Seamless Resume**: If the pipeline is interrupted (e.g., system crash, power loss), simply re-running the command will skip processed questions and continue exactly where it left off.
+
+- **Smart Rate Limit Handling**:
+  - **Auto-Detection**: Automatically detects API quota limits (HTTP 429/401 errors).
+  - **Graceful Shutdown**: Upon hitting a limit, the pipeline safely stops execution, consolidates all logs, and generates an emergency CSV submission file to ensure no progress is lost.
+
+- **Multi-Source Ingestion**:
+  - **Firecrawl Integration**: Capability to crawl single pages, full domains, or perform topic-based searches.
+  - **Universal Document Support**: Ingests JSON, PDF, DOCX, and TXT files directly into the Qdrant Vector DB.
+  - **Advanced Normalization**: Automatic Unicode normalization and whitespace cleaning for Vietnamese text.
+
+## Architecture
 
 The pipeline is orchestrated by a **LangGraph StateGraph**:
 
@@ -50,7 +58,7 @@ graph TD
     DirectAnswer --> End
 ````
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Component | Implementation |
 | :--- | :--- |
@@ -63,7 +71,7 @@ graph TD
 | **Code Execution** | LangChain Experimental PythonREPL |
 | **Models** | Local HuggingFace or VNPT API (configurable via `.env`) |
 
-## ⚡ Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -87,11 +95,10 @@ graph TD
     ```
 
 3.  **Configure Environment**
-    Create a `.env` file in the root directory. You can configure different credentials for the Large, Small, and Embedding models:
+    Create a `.env` file in the root directory:
 
     ```env
     # --- Model Selection ---
-    # Set to True to use VNPT API, False for local HuggingFace models
     USE_VNPT_API=False
 
     # --- Local Models (Used if USE_VNPT_API=False) ---
@@ -100,26 +107,17 @@ graph TD
     EMBEDDING_MODEL=bkai-foundation-models/vietnamese-bi-encoder
 
     # --- VNPT API Config (Used if USE_VNPT_API=True) ---
-    # Large Model Credentials
     VNPT_LARGE_AUTHORIZATION=Bearer <your_token>
     VNPT_LARGE_TOKEN_ID=<your_token_id>
     VNPT_LARGE_TOKEN_KEY=<your_token_key>
-    VNPT_LARGE_ENDPOINT=https://api.idg.vnpt.vn/data-service/v1/chat/completions/vnptai-hackathon-large
 
-    # Small Model Credentials
     VNPT_SMALL_AUTHORIZATION=Bearer <your_token>
     VNPT_SMALL_TOKEN_ID=<your_token_id>
     VNPT_SMALL_TOKEN_KEY=<your_token_key>
-    VNPT_SMALL_ENDPOINT=https://api.idg.vnpt.vn/data-service/v1/chat/completions/vnptai-hackathon-small
 
-    # Embedding Model Credentials
     VNPT_EMBEDDING_AUTHORIZATION=Bearer <your_token>
     VNPT_EMBEDDING_TOKEN_ID=<your_token_id>
     VNPT_EMBEDDING_TOKEN_KEY=<your_token_key>
-    VNPT_EMBEDDING_ENDPOINT=https://api.idg.vnpt.vn/data-service/vnptai-hackathon-embedding
-
-    # --- Optional: Web Crawling ---
-    FIRECRAWL_API_KEY=your_firecrawl_key
     ```
 
 ### Usage
@@ -128,47 +126,48 @@ graph TD
 
 Expand your knowledge base by crawling websites or adding local documents.
 
-  * **Crawl Data**:
+```bash
+# Crawl a website
+uv run python scripts/crawl.py --url https://example.com --mode links --topic "keyword"
 
-    ```bash
-    # Crawl a website filtering by topic keywords (results saved to data/crawled/)
-    uv run python scripts/crawl.py --url https://example.com --mode links --topic "keyword1,keyword2"
-    ```
-
-  * **Ingest Data**:
-    Load data into the Qdrant vector store (`data/qdrant_storage`).
-
-    ```bash
-    # Ingest crawled JSON files
-    uv run python scripts/ingest.py data/crawled/*.json --append
-
-    # Ingest a directory of documents (PDF, DOCX, TXT)
-    uv run python scripts/ingest.py --dir data/documents --append
-    ```
+# Ingest data into Vector DB
+uv run python scripts/ingest.py data/crawled/*.json --append
+```
 
 #### 2\. Run the Pipeline
 
-There are two modes to run the pipeline:
-
 **Option A: Local Development (Resumable)**
-Uses `main.py`. Supports checkpointing to `output/inference_log.jsonl`. If stopped, it resumes processing from the last specific Question ID.
+Uses `main.py`. Best for testing and processing large datasets over time.
 
-  * **Input:** Looks for `val.json` or `test.json` in `data/`.
-  * **Command:**
-    ```bash
-    uv run python main.py
-    ```
+```bash
+uv run python main.py
+```
 
-**Option B: Docker / Deployment (Simple)**
+**Option B: Docker / Deployment**
 Uses `app.py`. Designed for the competition submission environment.
 
-  * **Input:** Looks for `public_test.csv` or `private_test.csv` in `data/`.
-  * **Command:**
-    ```bash
-    uv run python app.py
-    ```
+```bash
+uv run python app.py
+```
 
-## 📂 Project Structure
+### Handling API Limits & Resuming
+
+This pipeline is designed to be **fault-tolerant**:
+
+1.  **Automatic Save**: If the VNPT API returns a Rate Limit error (429/401), the program will:
+
+      * Log the error.
+      * Stop processing new questions immediately.
+      * Consolidate all successful answers into `submission_emergency.csv`.
+      * Exit safely.
+
+2.  **How to Resume**:
+
+      * Wait for your API quota to reset (or switch tokens in `.env`).
+      * Run the same command again (`uv run python main.py`).
+      * The system detects the existing `inference_log.jsonl`, calculates which questions are missing, and **only processes the remaining questions**.
+
+## Project Structure
 
 ```
 vnpt-ai/
@@ -178,26 +177,14 @@ vnpt-ai/
 │   ├── documents/        # PDF/DOCX source files
 │   ├── val.json          # Validation dataset
 │   └── test.json         # Test dataset
-├── docker/               # Docker configuration
-├── output/               # Results and logs
-├── scripts/
-│   ├── crawl.py          # CLI: Web crawler
-│   └── ingest.py         # CLI: Vector ingestion
+├── output/               # Results and logs (inference_log.jsonl stored here)
 ├── src/
-│   ├── data_processing/  # Loaders, Formatting, Answer Extraction
-│   ├── nodes/            # LangGraph Nodes (Router, RAG, Logic, Direct)
-│   ├── templates/        # Jinja2 prompt templates (.j2 files)
-│   │   ├── router.j2     # Router classification prompts
-│   │   ├── rag.j2        # RAG node prompts
-│   │   ├── logic_solver.j2  # Code agent prompts
-│   │   └── direct_answer.j2 # Direct answer prompts
-│   ├── utils/            # Utilities (LLM, Embeddings, Checkpointing, Prompts)
-│   ├── config.py         # Configuration settings
-│   ├── graph.py          # Workflow definition
-│   ├── pipeline.py       # Core execution logic
-│   └── state.py          # Graph state schema
-├── app.py                # Deployment entry point (CSV input)
-├── main.py               # Dev entry point (JSON input + Resume)
+│   ├── nodes/            # Logic for Router, RAG, Logic, Direct nodes
+│   ├── utils/            # Utilities (Checkpointing, Ingestion, LLM)
+│   ├── pipeline.py       # Core execution logic & Resume handling
+│   └── graph.py          # LangGraph workflow definition
+├── app.py                # Deployment entry point
+├── main.py               # Development entry point
 └── pyproject.toml        # Dependencies
 ```
 
@@ -217,8 +204,8 @@ vnpt-ai/
 ```
 
 ### Input (CSV - for `app.py`)
-
 Columns: `qid`, `question`, `choice_a`, `choice_b`, `choice_c`, `choice_d` (or a `choices` column).
+
 
 ### Output (CSV)
 

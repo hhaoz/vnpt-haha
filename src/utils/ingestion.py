@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+import re
 
 from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -16,6 +17,15 @@ from src.utils.embeddings import get_embeddings
 from src.utils.logging import log_pipeline
 
 SUPPORTED_EXTENSIONS = {".json", ".pdf", ".docx", ".txt"}
+
+JUNK_PATTERNS = [
+    r"đăng nhập", r"đăng ký", r"quên mật khẩu", r"chia sẻ qua email", 
+    r"bản quyền thuộc", r"liên hệ quảng cáo", r"về đầu trang", 
+    r"xem thêm", r"bình luận", r"báo xấu", r"trang chủ", 
+    r"facebook", r"twitter", r"linkedin", r"zalo", 
+    r"kết nối với chúng tôi", r"thông tin tòa soạn",
+    r"wikipedia", r"bách khoa toàn thư", r"sửa đổi", r"biểu quyết",
+]
 
 _qdrant_client: QdrantClient | None = None
 _vector_store: QdrantVectorStore | None = None
@@ -43,6 +53,17 @@ def get_vector_store() -> QdrantVectorStore:
             embedding=embeddings,
         )
     return _vector_store
+
+def _is_junk_text(text: str) -> bool:
+    """Kiểm tra xem đoạn văn bản có phải là rác (nav, footer, ads) không."""
+    if len(text.split()) < 5:  # Loại bỏ câu quá ngắn
+        return True
+    
+    text_lower = text.lower()
+    for pattern in JUNK_PATTERNS:
+        if re.search(pattern, text_lower):
+            return True
+    return False
 
 
 def _initialize_collection(
@@ -105,11 +126,16 @@ def _process_crawled_json(json_path: Path) -> tuple[list[str], list[dict]]:
             "source_file": str(json_path),
         }
 
-        chunks = splitter.split_text(content)
-        for i, chunk in enumerate(chunks):
+        raw_chunks = splitter.split_text(content)
+        total_raw_chunks = len(raw_chunks)
+        
+        for i, chunk in enumerate(raw_chunks):
+            if _is_junk_text(chunk):
+                continue
+
             chunk_metadata = base_metadata.copy()
             chunk_metadata["chunk_index"] = i
-            chunk_metadata["total_chunks"] = len(chunks)
+            chunk_metadata["total_chunks"] = total_raw_chunks
             all_chunks.append(chunk)
             all_metadatas.append(chunk_metadata)
 
