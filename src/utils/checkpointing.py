@@ -64,23 +64,20 @@ async def append_log_entry(log_path: Path, entry: InferenceLogEntry) -> None:
             f.write(entry.model_dump_json() + "\n")
 
 
-def consolidate_log_file(log_path: Path) -> int:
+def consolidate_log_file(log_path: Path) -> None:
     """Consolidate and sort log file by qid.
     
     Reads all entries, removes duplicates (keeps latest), and writes back sorted.
     
     Args:
         log_path: Path to the JSONL log file
-        
-    Returns:
-        Number of entries after consolidation
     """
     if not log_path.exists():
-        return 0
+        return
     
     entries = load_log_entries(log_path)
     if not entries:
-        return 0
+        return
     
     sorted_qids = sort_qids(list(entries.keys()))
     
@@ -89,8 +86,6 @@ def consolidate_log_file(log_path: Path) -> int:
         for qid in sorted_qids:
             f.write(json.dumps(entries[qid], ensure_ascii=False) + "\n")
     
-    return len(entries)
-
 
 def generate_csv_from_log(log_path: Path, output_path: Path) -> int:
     """Generate submission CSV from JSONL log, sorted by qid.
@@ -103,10 +98,7 @@ def generate_csv_from_log(log_path: Path, output_path: Path) -> int:
         Count of entries written to CSV
     """
     entries = load_log_entries(log_path)
-    
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Sort qids naturally
     sorted_qids = sort_qids(list(entries.keys()))
     
     with open(output_path, "w", newline="", encoding="utf-8") as f:

@@ -80,7 +80,7 @@ async def async_main(batch_size: int = BATCH_SIZE) -> None:
         )
     
     log_pipeline("Final consolidation: sorting log file by qid...")
-    total_in_log = consolidate_log_file(log_path)
+    consolidate_log_file(log_path)
     
     output_file = DATA_OUTPUT_DIR / "submission.csv"
     total_entries = generate_csv_from_log(log_path, output_file)
