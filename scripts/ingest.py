@@ -23,8 +23,8 @@ from src.utils.ingestion import ingest_files
 
 EPILOG = """
 Examples:
-  python scripts/ingest.py data/crawled/file.json
-  python scripts/ingest.py data/crawled/*.json --append
+  python scripts/ingest.py data/crawl/file.json
+  python scripts/ingest.py data/crawl/*.json --append
   python scripts/ingest.py documents/report.pdf --collection my_collection
   python scripts/ingest.py --dir data/documents
 """

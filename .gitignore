@@ -36,7 +36,7 @@ qdrant_storage/
 # Output files (keep data folder structure)
 data/pred.csv
 data/__pycache__/
-# data/crawled/
+data/crawl/
 *.csv.bak
 
 # Logs

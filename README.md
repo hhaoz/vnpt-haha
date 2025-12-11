@@ -173,11 +173,7 @@ This pipeline is designed to be **fault-tolerant**:
 vnpt-ai/
 ├── data/                 
 │   ├── qdrant_storage/   # Persistent Vector DB
-│   ├── crawled/          # Crawled raw data
-│   ├── documents/        # PDF/DOCX source files
-│   ├── val.json          # Validation dataset
-│   └── test.json         # Test dataset
-├── output/               # Results and logs (inference_log.jsonl stored here)
+│   ├── crawl/          # Crawled raw data
 ├── src/
 │   ├── nodes/            # Logic for Router, RAG, Logic, Direct nodes
 │   ├── utils/            # Utilities (Checkpointing, Ingestion, LLM)
