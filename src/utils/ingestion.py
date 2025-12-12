@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 import re
+import os
+import time
 
 from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -19,10 +21,10 @@ from src.utils.logging import log_pipeline
 SUPPORTED_EXTENSIONS = {".json", ".pdf", ".docx", ".txt"}
 
 JUNK_PATTERNS = [
-    r"đăng nhập", r"đăng ký", r"quên mật khẩu", r"chia sẻ qua email", 
-    r"bản quyền thuộc", r"liên hệ quảng cáo", r"về đầu trang", 
-    r"xem thêm", r"bình luận", r"báo xấu", r"trang chủ", 
-    r"facebook", r"twitter", r"linkedin", r"zalo", 
+    r"đăng nhập", r"đăng ký", r"quên mật khẩu", r"chia sẻ qua email",
+    r"bản quyền thuộc", r"liên hệ quảng cáo", r"về đầu trang",
+    r"xem thêm", r"bình luận", r"báo xấu", r"trang chủ",
+    r"facebook", r"twitter", r"linkedin", r"zalo",
     r"kết nối với chúng tôi", r"thông tin tòa soạn",
     r"wikipedia", r"bách khoa toàn thư", r"sửa đổi", r"biểu quyết",
 ]
@@ -32,12 +34,31 @@ _vector_store: QdrantVectorStore | None = None
 
 
 def get_qdrant_client() -> QdrantClient:
-    """Get or create persistent Qdrant client singleton."""
+    """Get or create persistent Qdrant client singleton.
+
+    Prefers remote Qdrant when QDRANT_URL (and optional QDRANT_API_KEY) are set in the
+    environment. Falls back to local file-backed Qdrant using settings.vector_db_path_resolved.
+    """
     global _qdrant_client
     if _qdrant_client is None:
-        db_path = settings.vector_db_path_resolved
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        _qdrant_client = QdrantClient(path=str(db_path))
+        qdrant_url = os.getenv("QDRANT_URL")
+        qdrant_api_key = os.getenv("QDRANT_API_KEY")
+
+        if qdrant_url:
+            # Use remote Qdrant with optional API key
+            # strip trailing slash to avoid double-slash issues
+            qdrant_url = qdrant_url.rstrip('/')
+            try:
+                _qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+            except Exception as e:
+                # Fallback to local storage if remote initialization fails (e.g., DNS)
+                db_path = settings.vector_db_path_resolved
+                db_path.parent.mkdir(parents=True, exist_ok=True)
+                _qdrant_client = QdrantClient(path=str(db_path))
+        else:
+            db_path = settings.vector_db_path_resolved
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            _qdrant_client = QdrantClient(path=str(db_path))
     return _qdrant_client
 
 
@@ -58,7 +79,7 @@ def _is_junk_text(text: str) -> bool:
     """Kiểm tra xem đoạn văn bản có phải là rác (nav, footer, ads) không."""
     if len(text.split()) < 5:  # Loại bỏ câu quá ngắn
         return True
-    
+
     text_lower = text.lower()
     for pattern in JUNK_PATTERNS:
         if re.search(pattern, text_lower):
@@ -128,7 +149,7 @@ def _process_crawled_json(json_path: Path) -> tuple[list[str], list[dict]]:
 
         raw_chunks = splitter.split_text(content)
         total_raw_chunks = len(raw_chunks)
-        
+
         for i, chunk in enumerate(raw_chunks):
             if _is_junk_text(chunk):
                 continue

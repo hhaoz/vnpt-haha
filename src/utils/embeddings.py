@@ -93,6 +93,9 @@ def get_device() -> str:
     return "cpu"
 
 
+_embeddings: Embeddings | None = None
+
+
 def get_embeddings() -> Embeddings:
     """Get or create embeddings model singleton (VNPT API or local HuggingFace)."""
     global _embeddings
@@ -102,13 +105,23 @@ def get_embeddings() -> Embeddings:
     if settings.use_vnpt_api:
         if not settings.vnpt_embedding_authorization:
             raise ValueError("VNPT_EMBEDDING_AUTHORIZATION is required when USE_VNPT_API=True")
-        _embeddings = VNPTEmbeddings(
-            endpoint=settings.vnpt_embedding_endpoint,
-            authorization=settings.vnpt_embedding_authorization,
-            token_id=settings.vnpt_embedding_token_id,
-            token_key=settings.vnpt_embedding_token_key,
-        )
-        log_pipeline(f"VNPT Embedding API initialized: {settings.vnpt_embedding_endpoint}")
+        try:
+            _embeddings = VNPTEmbeddings(
+                endpoint=settings.vnpt_embedding_endpoint,
+                authorization=settings.vnpt_embedding_authorization,
+                token_id=settings.vnpt_embedding_token_id,
+                token_key=settings.vnpt_embedding_token_key,
+            )
+            log_pipeline(f"VNPT Embedding API initialized: {settings.vnpt_embedding_endpoint}")
+        except Exception as e:
+            # Fallback to local embeddings if remote init fails (e.g., DNS)
+            device = get_device()
+            _embeddings = HuggingFaceEmbeddings(
+                model_name=settings.embedding_model,
+                model_kwargs={"device": device},
+                encode_kwargs={"normalize_embeddings": True},
+            )
+            log_pipeline(f"VNPT init failed: {e}. Falling back to HuggingFace Embedding: {settings.embedding_model}")
     else:
         device = get_device()
         _embeddings = HuggingFaceEmbeddings(
@@ -120,5 +133,3 @@ def get_embeddings() -> Embeddings:
 
     return _embeddings
 
-
-_embeddings: Embeddings | None = None
